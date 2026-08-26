@@ -4,12 +4,11 @@ A terminal tool that maps a codebase deeply and **verifiably** — tech stack, e
 
 Every claim it makes (an entry point, a module's purpose, a dependency edge) is re-checked against the actual source before being written out. Claims that can't be verified are marked as such, not silently kept or dropped — that's the difference from a shallow `/init`-style summary.
 
-Status: early / greenfield, no code yet. See [plan.md](./plan.md) for the full architecture and build order.
+Status: early — Phase 1 (CLI skeleton, config, `doctor`) is done; indexing/Q&A aren't wired up yet.
 
 ## Prerequisites
 
 - Python 3.11+
-- Docker (used to run a local MongoDB instance — no manual Mongo install needed)
 - An API key for at least one LLM provider (Anthropic and/or OpenAI)
 
 ## Install
@@ -26,7 +25,7 @@ pipx install code-atlas   # persistent
 code-atlas index [path]      # index a repo (defaults to cwd), drops into a Q&A REPL when done
 code-atlas ask "question"    # one-shot question against an existing index
 code-atlas serve             # run the local server in the foreground, for debugging
-code-atlas doctor            # check Docker/Mongo/config health
+code-atlas doctor            # check config/environment health
 code-atlas config            # configure LLM provider + API key
 ```
 
@@ -34,6 +33,4 @@ First run prompts for provider + API key and writes `~/.code-atlas/config.toml`.
 
 ## Architecture
 
-CLI (Typer) → local FastAPI server → LangGraph orchestration → MongoDB (Docker-managed) + outbound LLM calls, all running on your own machine. No hosted backend, no accounts.
-
-See [plan.md](./plan.md) for the full package layout, indexing pipeline, and build order.
+CLI (Typer) → local FastAPI server → LangGraph orchestration → JSON-file persistence (`.code-atlas/state/`) + outbound LLM calls, all running on your own machine. No hosted backend, no accounts.
