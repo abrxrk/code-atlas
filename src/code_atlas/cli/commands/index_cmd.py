@@ -1,15 +1,14 @@
-from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import typer
 
 from code_atlas.cli.ui import ACCENT, MUTED, console, print_error, print_success
-from code_atlas.orchestration.nodes import repo_mapper, tech_stack_detector
-from code_atlas.store.models import SessionState
-from code_atlas.store.session_store import save_session
-from code_atlas.writers.agents_md import write as write_agents_md
-from code_atlas.writers.claude_md import write as write_claude_md
-from code_atlas.writers.context import DirectoryEntry, RepoContext, TechStackSummary
+from code_atlas.config.settings import config_exists
+from code_atlas.config.wizard import run_setup_wizard
+from code_atlas.server.process import ensure_server_running
+
+_INDEX_TIMEOUT_S = 300.0
 
 
 def run(
@@ -17,66 +16,48 @@ def run(
 ) -> None:
     """Index a repository into verified, agent-readable docs.
 
-    Currently covers repo mapping + tech-stack detection only (Phase 2):
-    walks the repo, detects languages/frameworks/build tools, and writes
-    CLAUDE.md/AGENTS.md from that. Entry points, module relationships,
-    and verification land in later build phases.
+    Runs the full LangGraph pipeline: repo mapping, tech-stack detection,
+    entry-point + module-relationship analysis (in parallel), then writes
+    CLAUDE.md/AGENTS.md plus the deeper .code-atlas/ output. Verification
+    lands in a later build phase. The pipeline itself runs inside the local
+    FastAPI server, not in this process — this command just talks to it.
     """
+    if not config_exists():
+        run_setup_wizard()
+
     root = path.resolve()
     if not root.is_dir():
         print_error(f"{root} is not a directory.")
         raise typer.Exit(code=1)
 
-    repo_map = repo_mapper.run(root)
-    stack = tech_stack_detector.run(repo_map)
-
-    ctx = RepoContext(
-        repo_name=_repo_name(repo_map, root),
-        file_count=repo_map.file_count,
-        tech_stack=TechStackSummary(
-            languages=stack.languages,
-            frameworks=stack.frameworks,
-            build_tools=stack.build_tools,
-            run_commands=stack.run_commands,
-            notes=stack.notes,
-        ),
-        directories=sorted(
-            (DirectoryEntry(name=name, file_count=len(files)) for name, files in repo_map.clusters.items()),
-            key=lambda entry: entry.name,
-        ),
-    )
-
-    claude_path = write_claude_md(ctx, root)
-    agents_path = write_agents_md(ctx, root)
-    save_session(
-        root,
-        SessionState(
-            repo_root=str(root),
-            indexed_at=datetime.now(UTC).isoformat(),
-            file_count=repo_map.file_count,
-            languages=stack.languages,
-            frameworks=stack.frameworks,
-        ),
-    )
+    port = ensure_server_running()
+    try:
+        response = httpx.post(
+            f"http://127.0.0.1:{port}/index",
+            json={"repo_root": str(root)},
+            timeout=_INDEX_TIMEOUT_S,
+        )
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        print_error(f"Indexing failed: the server returned {exc.response.status_code}. See server logs for details.")
+        raise typer.Exit(code=1) from None
+    except httpx.HTTPError as exc:
+        print_error(f"Indexing failed: could not reach the local server ({exc}).")
+        raise typer.Exit(code=1) from None
+    summary = response.json()["summary"]
 
     console.print()
-    print_success(f"Indexed {repo_map.file_count} files across {len(repo_map.clusters)} top-level directories.")
-    if stack.languages:
-        console.print(f"  [{ACCENT}]Languages:[/{ACCENT}] {', '.join(stack.languages)}")
-    if stack.frameworks:
-        console.print(f"  [{ACCENT}]Frameworks:[/{ACCENT}] {', '.join(stack.frameworks)}")
-    if stack.notes:
-        console.print(f"  [{MUTED}]{stack.notes}[/{MUTED}]")
-    console.print(f"  [{MUTED}]Wrote {claude_path.name} and {agents_path.name}.[/{MUTED}]")
-    console.print()
+    print_success(
+        f"Indexed {summary['file_count']} files. Wrote {len(summary['output_paths'])} output file(s)."
+    )
+    if summary["languages"]:
+        console.print(f"  [{ACCENT}]Languages:[/{ACCENT}] {', '.join(summary['languages'])}")
+    if summary["frameworks"]:
+        console.print(f"  [{ACCENT}]Frameworks:[/{ACCENT}] {', '.join(summary['frameworks'])}")
+    console.print(f"  [{ACCENT}]Entry points found:[/{ACCENT}] {summary['entry_point_count']}")
+    console.print(f"  [{ACCENT}]Module edges found:[/{ACCENT}] {summary['module_edge_count']}")
     console.print(
-        f"[{MUTED}]This is Phase 2 output — tech stack + directory map only. "
-        f"Entry points, module relationships, and verification land in later phases.[/{MUTED}]"
+        f"  [{MUTED}]Wrote CLAUDE.md, AGENTS.md, and .code-atlas/"
+        f"(index.md, modules/, dependency-graph.json, entry-points.md).[/{MUTED}]"
     )
-
-
-def _repo_name(repo_map: repo_mapper.RepoMapResult, root: Path) -> str:
-    for manifest in repo_map.manifests:
-        if manifest.name:
-            return manifest.name
-    return root.name
+    console.print()
