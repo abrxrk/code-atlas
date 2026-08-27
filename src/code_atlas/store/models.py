@@ -7,3 +7,12 @@ class SessionState(BaseModel):
     file_count: int
     languages: list[str] = Field(default_factory=list)
     frameworks: list[str] = Field(default_factory=list)
+
+
+class VerificationClaim(BaseModel):
+    """One row of the verification-claims.json audit trail."""
+
+    claim_type: str  # "entry_point" | "module_edge"
+    description: str
+    verified: bool
+    reason: str

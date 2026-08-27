@@ -22,8 +22,8 @@ def index(request: IndexRequest) -> IndexResponse:
             file_count=state.repo_map.file_count if state.repo_map else 0,
             languages=state.tech_stack.languages if state.tech_stack else [],
             frameworks=state.tech_stack.frameworks if state.tech_stack else [],
-            entry_point_count=len(state.entry_points),
-            module_edge_count=len(state.module_edges),
+            entry_point_count=len(state.confirmed_entry_points),
+            module_edge_count=len(state.confirmed_module_edges),
             output_paths=_output_paths(Path(request.repo_root)),
         ),
     )

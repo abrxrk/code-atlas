@@ -21,6 +21,12 @@ class ModuleDocsResult:
 def write(state: IndexState, repo_root: Path) -> ModuleDocsResult:
     """Write the .code-atlas/ deep-dive output: per-cluster module docs,
     a table-of-contents index.md, dependency-graph.json, and entry-points.md.
+
+    Renders from confirmed_entry_points/confirmed_module_edges, not
+    entry_points/module_edges — by the time the writer node runs, every
+    surviving claim has either been independently verified (confirmed_*) or
+    exhausted its retries (unverified_claims), and entry_points/module_edges
+    themselves are empty.
     """
     output_dir = repo_root / _OUTPUT_DIRNAME
     modules_dir = output_dir / _MODULES_DIRNAME
@@ -34,10 +40,10 @@ def write(state: IndexState, repo_root: Path) -> ModuleDocsResult:
     for cluster_name in sorted(clusters):
         files = clusters[cluster_name]
         slug = _slug(cluster_name)
-        entry_points = [ep for ep in state.entry_points if _cluster_of(ep.file) == cluster_name]
+        entry_points = [ep for ep in state.confirmed_entry_points if _cluster_of(ep.file) == cluster_name]
         edges = [
             edge
-            for edge in state.module_edges
+            for edge in state.confirmed_module_edges
             if _cluster_of(edge.source) == cluster_name or _cluster_of(edge.target) == cluster_name
         ]
 
@@ -50,10 +56,10 @@ def write(state: IndexState, repo_root: Path) -> ModuleDocsResult:
     index_path.write_text(_render_index(index_rows))
 
     dependency_graph_path = output_dir / "dependency-graph.json"
-    dependency_graph_path.write_text(json.dumps([edge.model_dump() for edge in state.module_edges], indent=2))
+    dependency_graph_path.write_text(json.dumps([edge.model_dump() for edge in state.confirmed_module_edges], indent=2))
 
     entry_points_path = output_dir / "entry-points.md"
-    entry_points_path.write_text(_render_entry_points(state.entry_points))
+    entry_points_path.write_text(_render_entry_points(state.confirmed_entry_points))
 
     return ModuleDocsResult(
         index_path=index_path,

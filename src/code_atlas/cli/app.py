@@ -1,6 +1,6 @@
 import typer
 
-from code_atlas.cli.commands import ask_cmd, config_cmd, doctor_cmd, index_cmd, serve_cmd
+from code_atlas.cli.commands import ask_cmd, config_cmd, doctor_cmd, index_cmd, mcp_serve_cmd, serve_cmd
 from code_atlas.cli.ui import apply_help_theme
 
 apply_help_theme()
@@ -18,6 +18,7 @@ app.command("index")(index_cmd.run)
 app.command("ask")(ask_cmd.run)
 app.command("serve")(serve_cmd.run)
 app.command("doctor")(doctor_cmd.run)
+app.command("mcp-serve")(mcp_serve_cmd.run)
 app.add_typer(config_cmd.app, name="config")
 
 
