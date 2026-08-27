@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from code_atlas.server.routes import health_routes, index_routes
+from code_atlas.server.routes import health_routes, index_routes, qa_routes
 
 
 def create_app() -> FastAPI:
@@ -8,5 +8,6 @@ def create_app() -> FastAPI:
 
     app.include_router(health_routes.router)
     app.include_router(index_routes.router)
+    app.include_router(qa_routes.router)
 
     return app

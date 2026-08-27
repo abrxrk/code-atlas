@@ -4,7 +4,12 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-ALWAYS_IGNORE = {".git", ".code-atlas", "__pycache__", "node_modules", ".venv", "venv"}
+# .code-atlas is deliberately NOT in this set: it holds code-atlas's own
+# generated docs (module docs, verification-report.md, ...), which the Q&A
+# and verifier agents are expected to be able to find and read via grep_repo
+# just like any other repo content. Excluding it silently let agents treat
+# "no grep hit" as proof-of-absence for files grep never had a chance to see.
+ALWAYS_IGNORE = {".git", "__pycache__", "node_modules", ".venv", "venv"}
 
 
 @dataclass
@@ -23,7 +28,21 @@ def grep(repo_root: Path, pattern: str, *, max_results: int = 50) -> list[GrepMa
 def _grep_ripgrep(repo_root: Path, pattern: str, max_results: int) -> list[GrepMatch]:
     try:
         proc = subprocess.run(
-            ["rg", "--line-number", "--no-heading", "--max-count", "10", pattern, "."],
+            [
+                "rg",
+                "--line-number",
+                "--no-heading",
+                "--max-count",
+                "10",
+                # ripgrep skips dotdirs by default, which would silently hide
+                # .code-atlas/ again even though it's not in ALWAYS_IGNORE —
+                # --hidden undoes that, and the globs restore the exclusions
+                # ALWAYS_IGNORE encodes for the pure-Python fallback below.
+                "--hidden",
+                *[f"--glob=!{d}/" for d in ALWAYS_IGNORE],
+                pattern,
+                ".",
+            ],
             cwd=repo_root,
             capture_output=True,
             text=True,

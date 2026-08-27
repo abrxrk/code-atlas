@@ -16,3 +16,11 @@ class VerificationClaim(BaseModel):
     description: str
     verified: bool
     reason: str
+
+
+class QAHistoryEntry(BaseModel):
+    """One row of the qa_history.jsonl log — one line per `ask` call."""
+
+    question: str
+    answer: str
+    asked_at: str  # ISO 8601, stamped by the caller — this module stays a pure I/O seam

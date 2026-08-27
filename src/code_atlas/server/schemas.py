@@ -17,3 +17,12 @@ class IndexSummary(BaseModel):
 class IndexResponse(BaseModel):
     session_id: str
     summary: IndexSummary
+
+
+class QARequest(BaseModel):
+    repo_root: str
+    question: str
+
+
+class QAResponse(BaseModel):
+    answer: str
