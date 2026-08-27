@@ -1,6 +1,5 @@
-from langchain_core.language_models import BaseChatModel
-
 from code_atlas.config.settings import Role, load_settings
+from code_atlas.llm.agent_backend import AgentBackend
 
 
 class ProviderNotConfiguredError(RuntimeError):
@@ -9,29 +8,17 @@ class ProviderNotConfiguredError(RuntimeError):
         self.role = role
 
 
-def get_chat_model(role: Role) -> BaseChatModel:
+def get_agent_backend(role: Role) -> AgentBackend:
     settings = load_settings()
     role_config = getattr(settings, role)
     if role_config is None:
         raise ProviderNotConfiguredError(role)
 
-    if role_config.provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic
+    if role_config.provider == "claude-code":
+        from code_atlas.llm.claude_code_backend import ClaudeCodeBackend
 
-        return ChatAnthropic(model=role_config.model, api_key=role_config.api_key)
+        return ClaudeCodeBackend(model=role_config.model)
 
-    if role_config.provider == "openai":
-        from langchain_openai import ChatOpenAI
+    from code_atlas.llm.langchain_backend import LangChainBackend
 
-        return ChatOpenAI(model=role_config.model, api_key=role_config.api_key)
-
-    if role_config.provider == "bedrock":
-        from langchain_aws import ChatBedrock
-
-        return ChatBedrock(
-            model_id=role_config.model,
-            region_name=role_config.region,
-            credentials_profile_name=role_config.profile,
-        )
-
-    raise ValueError(f"Unknown provider: {role_config.provider}")
+    return LangChainBackend.from_role_config(role_config)

@@ -11,7 +11,7 @@ from pydantic_settings import (
 
 from code_atlas.config.paths import CONFIG_FILE, ensure_config_dir
 
-ProviderName = Literal["anthropic", "openai", "bedrock"]
+ProviderName = Literal["anthropic", "openai", "bedrock", "claude-code"]
 Role = Literal["analysis", "verifier", "qa"]
 
 ROLES: tuple[Role, ...] = ("analysis", "verifier", "qa")
@@ -19,7 +19,7 @@ ROLES: tuple[Role, ...] = ("analysis", "verifier", "qa")
 
 class RoleConfig(BaseModel):
     provider: ProviderName
-    model: str
+    model: str | None = None  # optional for claude-code: falls back to the CLI's own default
     api_key: str | None = None
     region: str | None = None
     profile: str | None = None

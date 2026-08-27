@@ -53,7 +53,8 @@ def show() -> None:
             table.add_row(role_name, f"[{MUTED}]not set[/{MUTED}]", "-", "-")
             continue
         redacted = f"{'*' * 8}{role.api_key[-4:]}" if role.api_key else f"[{MUTED}]-[/{MUTED}]"
-        table.add_row(role_name, role.provider, role.model, redacted)
+        model = role.model or f"[{MUTED}]default[/{MUTED}]"
+        table.add_row(role_name, role.provider, model, redacted)
 
     console.print(table)
 

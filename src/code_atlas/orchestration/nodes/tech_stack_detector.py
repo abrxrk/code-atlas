@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from code_atlas.llm.provider_factory import ProviderNotConfiguredError, get_chat_model
+from code_atlas.llm.provider_factory import ProviderNotConfiguredError, get_agent_backend
 from code_atlas.orchestration.nodes.repo_mapper import RepoMapResult
 
 _ECOSYSTEM_LANGUAGE = {
@@ -72,7 +72,7 @@ def run(repo_map: RepoMapResult) -> TechStack:
 def _disambiguate(ecosystems: list[str], repo_map: RepoMapResult) -> str:
     """One LLM call, only reached when multiple ecosystems were detected."""
     try:
-        model = get_chat_model("analysis")
+        backend = get_agent_backend("analysis")
     except ProviderNotConfiguredError:
         return (
             f"Multiple ecosystems detected ({', '.join(ecosystems)}) — LLM disambiguation "
@@ -85,5 +85,4 @@ def _disambiguate(ecosystems: list[str], repo_map: RepoMapResult) -> str:
         "short sentence which is the primary language/stack, or if it's genuinely a "
         f"polyglot monorepo:\n\n{manifest_list}"
     )
-    response = model.invoke(prompt)
-    return response.content if isinstance(response.content, str) else str(response.content)
+    return backend.run(prompt).text
