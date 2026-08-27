@@ -1,0 +1,47 @@
+# {{ ctx.repo_name }}
+
+{% if ctx.tech_stack.languages %}
+## Tech stack
+
+- **Languages:** {{ ctx.tech_stack.languages | join(", ") }}
+{% if ctx.tech_stack.frameworks %}
+- **Frameworks:** {{ ctx.tech_stack.frameworks | join(", ") }}
+{% endif %}
+{% if ctx.tech_stack.build_tools %}
+- **Build tools:** {{ ctx.tech_stack.build_tools | join(", ") }}
+{% endif %}
+{% if ctx.tech_stack.run_commands %}
+- **Run commands:**
+{% for cmd in ctx.tech_stack.run_commands %}
+  - `{{ cmd }}`
+{% endfor %}
+{% endif %}
+{% if ctx.tech_stack.notes %}
+- **Note:** {{ ctx.tech_stack.notes }}
+{% endif %}
+{% else %}
+## Tech stack
+
+No manifests detected yet.
+{% endif %}
+
+## Directory map
+
+{{ ctx.file_count }} file{{ "s" if ctx.file_count != 1 else "" }} scanned.
+
+{% for dir in ctx.directories %}
+- `{{ dir.name if dir.name else "." }}/` — {{ dir.file_count }} file{{ "s" if dir.file_count != 1 else "" }}
+{% endfor %}
+
+{% if ctx.entry_points %}
+## Entry points
+
+{% for entry_point in ctx.entry_points %}
+- {{ entry_point }}
+{% endfor %}
+{% endif %}
+
+{% if ctx.verification_summary %}
+---
+{{ ctx.verification_summary }}
+{% endif %}
