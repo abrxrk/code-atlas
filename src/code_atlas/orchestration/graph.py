@@ -14,6 +14,7 @@ being silently dropped or retried forever.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -257,6 +258,28 @@ def _build_graph() -> StateGraph:
 graph = _build_graph().compile()
 
 
+def stream_index(repo_root: str) -> Iterator[tuple[str, IndexState]]:
+    """Yields (node_name, state_after_that_node) as each node completes.
+
+    Powers the /index SSE progress stream — without this, `code-atlas
+    index` runs silently for as long as the LLM calls take (often
+    minutes), which looks indistinguishable from a hang.
+    """
+    working = IndexState(repo_root=repo_root).model_dump()
+    for chunk in graph.stream(IndexState(repo_root=repo_root), {"recursion_limit": 100}, stream_mode="updates"):
+        for node_name, update in chunk.items():
+            # LangGraph reports a node's update as None (not {}) when the
+            # node returns an empty dict — writer does this on purpose,
+            # since it only has side effects (writes files), no state change.
+            if update:
+                working.update(update)
+            yield node_name, IndexState.model_validate(working)
+
+
 def run_index(repo_root: str) -> IndexState:
-    final_state = graph.invoke(IndexState(repo_root=repo_root), {"recursion_limit": 100})
-    return IndexState.model_validate(final_state)
+    final_state: IndexState | None = None
+    for _, final_state in stream_index(repo_root):
+        pass
+    if final_state is None:
+        raise RuntimeError("Indexing graph produced no output.")
+    return final_state

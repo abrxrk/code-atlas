@@ -1,9 +1,10 @@
 import shutil
 
-import typer
+from prompt_toolkit import prompt as pt_prompt
+from prompt_toolkit.shortcuts import confirm as pt_confirm
 
 from code_atlas.cli.ui import ACCENT, MUTED, console, print_error, print_info, print_pending, print_success
-from code_atlas.config.settings import ROLES, ProviderName, Role, RoleConfig, Settings, save_settings
+from code_atlas.config.settings import ROLES, ProviderName, RoleConfig, Settings, save_settings
 
 _PROVIDER_CHOICES: dict[str, ProviderName] = {
     "1": "anthropic",
@@ -21,40 +22,47 @@ _PROVIDER_LABELS: dict[ProviderName, str] = {
 
 
 def run_setup_wizard() -> Settings:
-    """Interactively collect provider config for each role and save it.
+    """Interactively collect one provider and apply it to every role.
 
-    One-time linear flow (not a persistent REPL), so plain typer.prompt /
-    typer.confirm is intentional here rather than prompt_toolkit.
+    One-time linear flow (not a persistent REPL). Uses prompt_toolkit's
+    one-off prompt()/confirm() rather than typer/click prompts — this
+    wizard can be triggered from inside the REPL, which has already put
+    the terminal into prompt_toolkit's own raw input mode; mixing in
+    click's cooked-mode-expecting input() there caused literal control
+    characters (^C) to leak into the terminal instead of being handled.
     """
     console.print()
-    console.print(f"[bold {ACCENT}]Welcome to code-atlas — let's set up your LLM provider(s).[/bold {ACCENT}]")
-    console.print(f"[{MUTED}]You'll configure a provider for each of: {', '.join(ROLES)}.[/{MUTED}]")
+    console.print(f"[bold {ACCENT}]Welcome to code-atlas — let's set up your LLM provider.[/bold {ACCENT}]")
+    console.print(f"[{MUTED}]This one provider is used for everything: {', '.join(ROLES)}.[/{MUTED}]")
+    console.print()
 
-    role_configs: dict[Role, RoleConfig] = {}
-    for role in ROLES:
-        console.print()
-        console.print(f"[bold {ACCENT}]Role: {role}[/bold {ACCENT}]")
-        role_configs[role] = _configure_role(role)
-
-    settings = Settings(**role_configs)
+    role_config = _configure_provider()
+    settings = Settings(**dict.fromkeys(ROLES, role_config))
     save_settings(settings)
 
     console.print()
-    print_success("Setup complete — config saved.")
-    for role in ROLES:
-        cfg = role_configs[role]
-        model_note = f" ({cfg.model})" if cfg.model else ""
-        console.print(f"  [{ACCENT}]{role}:[/{ACCENT}] {_PROVIDER_LABELS[cfg.provider]}{model_note}")
+    model_note = f" ({role_config.model})" if role_config.model else ""
+    print_success(f"Setup complete — using {_PROVIDER_LABELS[role_config.provider]}{model_note} for everything.")
 
     return settings
 
 
-def _configure_role(role: Role) -> RoleConfig:
+def _prompt(message: str, *, default: str = "", password: bool = False) -> str:
+    """Like click's prompt(default=...): show `[default]` as a hint and fall
+    back to it on empty input — never pre-fill prompt_toolkit's edit buffer
+    with literal editable text, which makes typing over it append instead
+    of replace (e.g. a shown "2" plus a typed "2" becomes "22")."""
+    hint = f" [{default}]" if default else ""
+    response = pt_prompt(f"{message}{hint}: ", is_password=password).strip()
+    return response or default
+
+
+def _configure_provider() -> RoleConfig:
     provider = _ask_provider()
 
     if provider in ("anthropic", "openai"):
-        api_key = typer.prompt(f"  {_PROVIDER_LABELS[provider]} — API key", hide_input=True)
-        model = typer.prompt("  Model name", default=_default_model(provider))
+        api_key = _prompt(f"  {_PROVIDER_LABELS[provider]} — API key", password=True)
+        model = _prompt("  Model name", default=_default_model(provider))
         return RoleConfig(provider=provider, api_key=api_key, model=model)
 
     if provider == "claude-code":
@@ -63,13 +71,13 @@ def _configure_role(role: Role) -> RoleConfig:
         else:
             print_pending("Found `claude` on PATH — assuming you're already logged in.")
         model = None
-        if typer.confirm("  Override the default model?", default=False):
-            model = typer.prompt("  Model name")
+        if pt_confirm("  Override the default model?"):
+            model = _prompt("  Model name")
         return RoleConfig(provider=provider, model=model)
 
-    region = typer.prompt("  AWS region", default="us-east-1")
-    profile = typer.prompt("  AWS profile (optional, blank for default)", default="", show_default=False)
-    model = typer.prompt("  Model id", default="anthropic.claude-3-5-sonnet-20241022-v2:0")
+    region = _prompt("  AWS region", default="us-east-1")
+    profile = _prompt("  AWS profile (optional, blank for default)")
+    model = _prompt("  Model id", default="anthropic.claude-3-5-sonnet-20241022-v2:0")
     return RoleConfig(provider=provider, region=region, profile=profile or None, model=model)
 
 
@@ -77,14 +85,11 @@ def _ask_provider() -> ProviderName:
     print_info("Choose a provider:")
     for key, provider in _PROVIDER_CHOICES.items():
         console.print(f"    [{ACCENT}]{key}[/{ACCENT}]) {_PROVIDER_LABELS[provider]}")
-    choice = typer.prompt(
-        "  Provider",
-        default="2",
-        show_choices=False,
-    )
+
+    choice = _prompt("  Provider", default="2")
     while choice not in _PROVIDER_CHOICES:
         console.print(f"[{MUTED}]Please enter one of: {', '.join(_PROVIDER_CHOICES)}[/{MUTED}]")
-        choice = typer.prompt("  Provider", default="2")
+        choice = _prompt("  Provider", default="2")
     return _PROVIDER_CHOICES[choice]
 
 

@@ -19,6 +19,23 @@ class IndexResponse(BaseModel):
     summary: IndexSummary
 
 
+class IndexProgressEvent(BaseModel):
+    """One SSE event from POST /index while the pipeline is still running."""
+
+    stage: str
+    retry_count: int = 0
+
+
+class IndexCompleteEvent(BaseModel):
+    stage: str = "complete"
+    result: IndexResponse
+
+
+class IndexErrorEvent(BaseModel):
+    stage: str = "error"
+    message: str
+
+
 class QARequest(BaseModel):
     repo_root: str
     question: str
