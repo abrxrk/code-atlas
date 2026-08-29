@@ -1,8 +1,9 @@
 import typer
+from prompt_toolkit.shortcuts import confirm as pt_confirm
 from rich import box
 from rich.table import Table
 
-from code_atlas.cli.ui import ACCENT, MUTED, PENDING, console
+from code_atlas.cli.ui import ACCENT, MUTED, PENDING, console, print_success
 from code_atlas.config.paths import CONFIG_FILE
 from code_atlas.config.settings import ROLES, config_exists, load_settings
 
@@ -63,3 +64,22 @@ def show() -> None:
 def path() -> None:
     """Print the path to the config file (~/.code-atlas/config.toml)."""
     console.print(str(CONFIG_FILE))
+
+
+@app.command("logout")
+def logout() -> None:
+    """Delete the saved provider config so you can set it up again.
+
+    The next `index`/`ask` (or `config logout` again to check) will
+    re-trigger the first-run setup wizard.
+    """
+    if not config_exists():
+        console.print(f"[{MUTED}]No config file to remove at {CONFIG_FILE}.[/{MUTED}]")
+        return
+
+    if not pt_confirm(f"  Delete {CONFIG_FILE} and log out of your configured provider?"):
+        console.print(f"[{MUTED}]Cancelled.[/{MUTED}]")
+        return
+
+    CONFIG_FILE.unlink()
+    print_success("Logged out — config removed. You'll be prompted to set up a provider again next time.")

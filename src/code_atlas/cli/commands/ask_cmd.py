@@ -29,11 +29,12 @@ def run(
 
     port = ensure_server_running()
     try:
-        response = httpx.post(
-            f"http://127.0.0.1:{port}/ask",
-            json={"repo_root": str(root), "question": question},
-            timeout=_ASK_TIMEOUT_S,
-        )
+        with console.status(f"[{ACCENT}]Thinking…[/{ACCENT}]", spinner="dots"):
+            response = httpx.post(
+                f"http://127.0.0.1:{port}/ask",
+                json={"repo_root": str(root), "question": question},
+                timeout=_ASK_TIMEOUT_S,
+            )
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         print_error(f"Ask failed: the server returned {exc.response.status_code}. See server logs for details.")

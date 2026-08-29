@@ -59,6 +59,15 @@ def run_repl() -> None:
 def _to_args(line: str) -> list[str]:
     if line in ("help", "--help", "-h"):
         return ["--help"]
+
+    # "ask" takes its whole remainder as one question string — shlex-splitting
+    # it like other commands would break "ask who are you" into 4 positional
+    # args ("who", "are", "you" extra), since ask_cmd.run() only accepts one.
+    first, _, rest = line.partition(" ")
+    if first == "ask":
+        rest = rest.strip()
+        return ["ask", rest] if rest else ["ask"]
+
     try:
         tokens = shlex.split(line)
     except ValueError:
